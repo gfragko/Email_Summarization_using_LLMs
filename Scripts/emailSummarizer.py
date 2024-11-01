@@ -117,9 +117,7 @@ def summarize_email(sender, date, email_body, current_response, conversation_his
     # print(formatted_response)
     return response_text
     
-def update_history_db(summary):
-    
-    return
+
 
 def evaluate_summary(summary, email_txt, attachments_txt):
     model = OllamaLLM(model="llama3.1:latest")
