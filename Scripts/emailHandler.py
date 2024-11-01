@@ -70,6 +70,9 @@ def process_image_attachment(attachment):
         
     # Use Tesseract to extract text from the image
     extracted_text = pytesseract.image_to_string(image)
+    # print("--------------------------------------------------------")
+    # print(extracted_text)
+    # print("--------------------------------------------------------")
     
     
     return extracted_text
@@ -122,7 +125,7 @@ def extract_text_from_image(pdf_data):
 
 
 def main():
-    current_response, conversation_history, attachments_as_text = simple_extract_msg_content("C:\\Users\\gfrag\\Desktop\\Workspace\\MAILS\\212144_I_ACY-CORR.msg")
+    current_response, conversation_history, attachments_as_text = simple_extract_msg_content("MAILS\\212144_I_ACY-CORR.msg")
 
 
 
