@@ -125,8 +125,8 @@ def extract_text_from_image(pdf_data):
 
 
 def main():
-    current_response, conversation_history, attachments_as_text = simple_extract_msg_content("MAILS\\212144_I_ACY-CORR.msg")
-
+    sender, date, email_body,current_response, conversation_history, attachments_as_text = simple_extract_msg_content("MAILS\\212144_I_ACY-CORR.msg")
+    # sender, date, email_body, current_response, conversation_history, attachments_as_text
 
 
 
@@ -141,6 +141,7 @@ def main():
     i = 1
     for att in attachments_as_text:
         print(i,".->>>>>>>>>>",att,"\n")
+        i += 1
     print("=============================================================")
     
 if __name__ == "__main__":

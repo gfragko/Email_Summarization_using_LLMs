@@ -78,15 +78,66 @@ def retrieve_context_dictionary_db(dictionary_db, query):
     return dictionary_results
 
 
+def prep_conv_history(conversation_history):
+    
+    
+    
+    
+    return 
 
 # Set up Langchain summarization with RAG (Retrieval-Augmented Generation)
 def summarize_email(sender, date, email_body, current_response, conversation_history, attachments_as_text, dictionary_db, email_history_db):
-    model = OllamaLLM(model="llama3.1:latest")
+    # model = OllamaLLM(model="llama3.1:latest")
+    model = OllamaLLM(model="llama3.2-vision")
+    prompt = f"[EMAIL]: {conversation_history} \n\n This is an email containing information and/or conversations for a shipping company."\
+    "I want you to scan through the documents and provide a list of special terms (general shipping terms and incoterms) that you dont understand the meaning of."\
+    "These terms that you might not be able to understand could be like but not limited to the following: COT, ETC, ISO, SDR(THESE ARE EXAMPLES that might not exist in the email). "\
+    "The output should be a list in the following format (without any other text): term_a, term_b, term_c, ..."
+    print("Unknown words prompt:", prompt)
     # Finding incoterms that the model does not understand
-    unknown_words = model.invoke("This is an email containing information and/or conversations for a shipping company.\
-    I want you to scan through the documents and provide a list of special terms (general shipping terms and incoterms) that you dont understand the meaning of.\
-    These terms that you might not be able to understand are like the following: COT, ETC, ISO, SDR\
-    The output should be a list in the following format (without any other text): term_a, term_b, term_c, ...")
+    unknown_words = model.invoke(prompt)
+    
+    print("Unknown words:", unknown_words)
+    #####################################################################################
+    prompt = f"""
+    [EMAIL]: {conversation_history} \n\n This is an email containing information and/or conversations for a shipping company.
+    I want you to turn this text into a more clear version of the conversation that is provided which contains ONLY the main body of each text email message that was exchanged.
+    The output you will provide should use the following formatting:
+    [Sender user 1]: [main body of email they sent]
+    [Sender user 2]: [main body of email they sent]
+    Sender usernames must be extracted from the email text i have provided.
+    For example the following message:
+    From: Skysealand <ssls@colbd.com>
+    Sent: Πέμπτη, 19 Αυγούστου 2021 2:26 μμ
+    To: Lia Charalampopoulou <operations@arianmaritime.gr>
+    Cc: Vicky Parissi <operations01@arianmaritime.gr>; Marina Koletzaki <mkoletzaki@arianmaritime.gr>
+    Subject: RE: 212144 * SSL21169
+    Dear Sir,
+    Pls find attached of Surrendered MB Copy\nB.Regards.
+    AMDAD HOSSAN  SR. EXECUTIVE
+    EXPORT DOCUMENTION OF
+    SKYSEALAND SHIPPING LINES
+    TEL:+88031-2526344 FAX:+88031-2523955
+    MOBILE NO.+8801840-867611
+    EMAIL#ssls@colbd.com
+    +++++++++++++++++++++++++++++
+    The formatted form of this message should be:
+    Skysealand <ssls@colbd.com> : Dear Sir,
+    Pls find attached of Surrendered MB Copy
+    B.Regards.
+    """
+    clean_conversation = model.invoke(prompt)
+    
+    print("Formatted conversation",clean_conversation)
+    
+    
+    #####################################################################################
+    
+    attached_mentioned_flag = model.invoke(f"{clean_conversation}\n\nLook through this conversation and tell me if the people that communicate are looking for information from an attached file.The output you will provide must be in the following format without further comments:(If true)->  TRUE, [information they are searching for] \n(If false)-> FALSE")
+    
+    print(attached_mentioned_flag)
+    
+    
     
     # Retrieve explanations for specific shipping terms that the model might not recognize
     dictionary_results = retrieve_context_dictionary_db(dictionary_db, unknown_words)
@@ -96,8 +147,11 @@ def summarize_email(sender, date, email_body, current_response, conversation_his
     # context += "\n\n" + "\n\n".join([f"Previous Email: {doc.page_content}" for doc in email_history_results])
     context += "\n\n" + "\n\n".join([f"Sender: {sender}"])
     context += "\n\n" + "\n\n".join([f"date: {date}"])
-    context += "\n\n" + "\n\n".join([f"conversation history: {conversation_history}"])
-    context += "\n\n" + "\n\n".join([f"Attached files: {attachments_as_text}"])
+    context += "\n\n" + "\n\n".join([f"conversation history: {clean_conversation}"])
+    flags = ["false", "FALSE", "False"]
+    if all(flag.lower() not in attached_mentioned_flag.lower() for flag in flags):
+        print("!!!!!!!!!!!!!!!!!ATTACHED FILES INCLUDED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        context += "\n\n" + "\n\n".join([f"Attached files: {attachments_as_text}"])
     # print(context)
 
     prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
@@ -105,7 +159,8 @@ def summarize_email(sender, date, email_body, current_response, conversation_his
         "the dictionary explanations to better understand special terms in the email. The summarization " \
         "needs to contain the sender of the email and the date. If the attachments contain shipping numbers " \
         "or any identification numbers whatsoever they need to also be added in the summary. The summary must " \
-        "also contain a description of the attached files.")
+        "also contain a description of the attached files."\
+        "These contracts are signed off by both parties involved (the shipper/exporter and the consignee/importer) and you are allowed to edit them")
     
     
     # Load the language model
