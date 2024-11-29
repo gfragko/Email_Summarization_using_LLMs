@@ -193,7 +193,7 @@ def evaluate_summary(summary, email_txt, attachments_txt):
     
 
 
-from initDictionary import calculate_chunk_ids, split_documents
+from Scripts.Depricated.initDictionary import calculate_chunk_ids, split_documents
 def add_to_chroma(chunks: list[Document], db):
     # Calculate Page IDs for all chunks
     chunks_with_ids = calculate_chunk_ids(chunks)

@@ -1,19 +1,18 @@
 import argparse
 import os
 import shutil
-from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
-from langchain_community.embeddings.bedrock import BedrockEmbeddings
 from pdf2image import convert_from_path
 import pytesseract  # For Tesseract OCR
 import PyPDF2
 
 # PDFS_PATH = "C:\\Users\\gfrag\\Desktop\\Workspace\\Fairytales"
-PDFS_PATH = "Dictionary_PDFs"
-CHROMA_PATH = "Dictionary_DB"
+PDFS_PATH = "C:\\Users\\gfrag\\Desktop\\Workspace\\DICTIONARY"
+CHROMA_PATH = "chroma"
 
 def get_embedding_function():
     embeddings = OllamaEmbeddings(model="llama3.1:latest")
@@ -31,11 +30,11 @@ def load_documents():
             print(f"Processing PDF: {pdf_path}")
             if not is_pdf_scanned(pdf_path):                
                 # Try loading the document using PyPDFDirectoryLoader
-                # document_loader = PyPDFDirectoryLoader(pdf_path)
-                document_loader = PyPDFLoader(pdf_path)
+                document_loader = PyPDFDirectoryLoader(pdf_path)
                 extracted_documents = document_loader.load()
-                # print(extracted_documents)
-                documents.extend(extracted_documents)  # Add text documents to the list
+                print(extracted_documents)
+                if extracted_documents:
+                    documents.extend(extracted_documents)  # Add text documents to the list
             else:
                 # print("helloo")
                 # If no text is found, use OCR via Tesseract
@@ -173,15 +172,7 @@ def main():
     chunks = split_documents(documents)
     add_to_chroma(chunks)
     
-def initDictionary():
-    documents = load_documents()
-    chunks = split_documents(documents)
-    add_to_chroma(chunks)
-    return
-
-def clear_DICTIONARY():
-    if os.path.exists(CHROMA_PATH):
-        shutil.rmtree(CHROMA_PATH)
+    
     
 if __name__ == "__main__":
     main()
