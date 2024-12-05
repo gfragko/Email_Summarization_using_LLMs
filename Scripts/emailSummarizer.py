@@ -10,24 +10,63 @@ import emailHandler
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
+from langchain_huggingface import HuggingFaceEmbeddings
+from categorize_email import categorize_email
 
 # Initialize the SentenceTransformer model (same model used during database creation)
-embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-
-# Define a function to generate embeddings (same as during database creation)
-def embed_text(texts):
-    return embedding_model.encode(texts, convert_to_numpy=True)
+embedding_function = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
 
-PROMPT_TEMPLATE = """
-Answer the question based only on the following context:
 
-{context}
+# PROMPT_TEMPLATE = """
+# Answer the question based only on the following context:
 
----
+# {context}
 
-Answer the question based on the above context: {question}
+# ---
+
+# Answer the question based on the above context: {question}
+# """
+
+SUMMARY_TEMPLATE = """
+You are a highly skilled assistant summarizing professional emails for streamlined communication. Analyze the following email and attachments to create a summary that highlights key information, actions required, and any important deadlines.
+
+Details:
+
+Sender: {sender}
+Date: {date}
+Email Category: {email_category}
+Email Content:
+{text}
+
+Attachments (as text):
+{attachments_as_text}
+
+Explanations for unknown words:
+{db_context}
+
+
+Summary Instructions:
+Identify the main purpose of the email and summarize it in one or two sentences.
+Highlight any key points, requests, or deadlines mentioned in the email or attachments.
+Specify any required actions for the recipient.
+If applicable, include relevant context based on the email category.
+Output Example:
+
+Main Purpose: [Brief summary of the email’s overall intent]
+Key Points/Requests:
+[Key point 1]
+[Key point 2]
+Action Items:
+[Action required, responsible party, and deadline if applicable]
+Ensure the summary is clear, concise, and reflects the email's intent accurately.
+
+
 """
+
+
+
+
 
 
 REVIEW_TEMPLATE = """
@@ -58,7 +97,7 @@ Finally provide a new prompt to feed into Ollama that you think would achieve a 
 
 # Initialize Chroma DBs for dictionary and email history
 def get_DBs():
-    dictionary_db = Chroma(persist_directory="Dictionary_DB", embedding_function=embed_text)
+    dictionary_db = Chroma(persist_directory="Dictionary_DB", embedding_function=embedding_function)
     return dictionary_db
 
 
@@ -75,11 +114,11 @@ def retrieve_incoterms_context(dictionary_db, query):
 
 
 # Set up Langchain summarization with RAG (Retrieval-Augmented Generation)
-def summarize_email(sender, date, email_body, current_response, conversation_history, attachments_as_text, dictionary_db, email_history_db):
+def summarize_email(sender, date, current_response, attachments_as_text, dictionary_db, email_category):
     # model = OllamaLLM(model="llama3.1:latest")
-    model = OllamaLLM(model="llama3.2-vision")
-    prompt = f"[EMAIL]: {conversation_history} \n\n This is an email containing information and/or conversations for a shipping company."\
-    "I want you to scan through the documents and provide a list of special terms (general shipping terms and incoterms) that you dont understand the meaning of."\
+    model = OllamaLLM(model="llama3.2-vision:latest")
+    prompt = f"[EMAIL]: {current_response} \n\n This is an email sent to a shipping company."\
+    "I want you to scan through the given EMAIL text above and provide a list of special terms (general shipping terms and incoterms) that you dont understand the meaning of."\
     "These terms that you might not be able to understand could be like but not limited to the following: COT, ETC, ISO, SDR(THESE ARE EXAMPLES that might not exist in the email). "\
     "The output should be a list in the following format (without any other text): term_a, term_b, term_c, ..."
     print("Unknown words prompt:", prompt)
@@ -87,100 +126,58 @@ def summarize_email(sender, date, email_body, current_response, conversation_his
     unknown_words = model.invoke(prompt)
     
     print("Unknown words:", unknown_words)
-    #####################################################################################
-    prompt = f"""
-    [EMAIL]: {conversation_history} \n\n This is an email containing information and/or conversations for a shipping company.
-    I want you to turn this text into a more clear version of the conversation that is provided which contains ONLY the main body of each text email message that was exchanged.
-    The output you will provide should use the following formatting:
-    [Sender user 1]: [main body of email they sent]
-    [Sender user 2]: [main body of email they sent]
-    Sender usernames must be extracted from the email text i have provided.
-    For example the following message:
-    From: Skysealand <ssls@colbd.com>
-    Sent: Πέμπτη, 19 Αυγούστου 2021 2:26 μμ
-    To: Lia Charalampopoulou <operations@arianmaritime.gr>
-    Cc: Vicky Parissi <operations01@arianmaritime.gr>; Marina Koletzaki <mkoletzaki@arianmaritime.gr>
-    Subject: RE: 212144 * SSL21169
-    Dear Sir,
-    Pls find attached of Surrendered MB Copy\nB.Regards.
-    AMDAD HOSSAN  SR. EXECUTIVE
-    EXPORT DOCUMENTION OF
-    SKYSEALAND SHIPPING LINES
-    TEL:+88031-2526344 FAX:+88031-2523955
-    MOBILE NO.+8801840-867611
-    EMAIL#ssls@colbd.com
-    +++++++++++++++++++++++++++++
-    The formatted form of this message should be:
-    Skysealand <ssls@colbd.com> : Dear Sir,
-    Pls find attached of Surrendered MB Copy
-    B.Regards.
-    """
-    clean_conversation = model.invoke(prompt)
-    
-    print("Formatted conversation",clean_conversation)
-    
-    
-    #####################################################################################
-    
-    attached_mentioned_flag = model.invoke(f"{clean_conversation}\n\nLook through this conversation and tell me if the people that communicate are looking for information from an attached file.The output you will provide must be in the following format without further comments:(If true)->  TRUE, [information they are searching for] \n(If false)-> FALSE")
-    
-    print(attached_mentioned_flag)
-    
     
     
     # Retrieve explanations for specific shipping terms that the model might not recognize
-    dictionary_results = retrieve_context_dictionary_db(dictionary_db, unknown_words)
+    dictionary_results = retrieve_incoterms_context(dictionary_db, unknown_words)
+    print("dictionary_results:", unknown_words)
+    
+    
     
     # Combine the context into a single prompt for summarization
     context = "\n\n".join([f"Dictionary Explanation: {doc.page_content}" for doc in dictionary_results])
     # context += "\n\n" + "\n\n".join([f"Previous Email: {doc.page_content}" for doc in email_history_results])
-    context += "\n\n" + "\n\n".join([f"Sender: {sender}"])
-    context += "\n\n" + "\n\n".join([f"date: {date}"])
-    context += "\n\n" + "\n\n".join([f"conversation history: {clean_conversation}"])
-    flags = ["false", "FALSE", "False"]
-    if all(flag.lower() not in attached_mentioned_flag.lower() for flag in flags):
-        print("!!!!!!!!!!!!!!!!!ATTACHED FILES INCLUDED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        context += "\n\n" + "\n\n".join([f"Attached files: {attachments_as_text}"])
-    # print(context)
+    # context += "\n\n" + "\n\n".join([f"Sender: {sender}"])
+    # context += "\n\n" + "\n\n".join([f"date: {date}"])
+    # context += "\n\n" + "\n\n".join([f"Email text: {current_response}"])
+    # context += "\n\n" + "\n\n".join([f"Attached files: {attachments_as_text}"])
 
-    prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-    prompt = prompt_template.format(context=context, question="Provide a detailed summary of the current email using " \
-        "the dictionary explanations to better understand special terms in the email. The summarization " \
-        "needs to contain the sender of the email and the date. If the attachments contain shipping numbers " \
-        "or any identification numbers whatsoever they need to also be added in the summary. The summary must " \
-        "also contain a description of the attached files."\
-        "These contracts are signed off by both parties involved (the shipper/exporter and the consignee/importer) and you are allowed to edit them")
+    # prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+    # prompt = prompt_template.format(context=context, question="Provide a detailed summary of the current email using " \
+    #     "the dictionary explanations to better understand special terms in the email. The summarization " \
+    #     "needs to contain the sender of the email and the date. If the attachments contain shipping numbers " \
+    #     "or any identification numbers whatsoever they need to also be added in the summary. The summary must " \
+    #     "also contain a description of the attached files."\
+    #     "These contracts are signed off by both parties involved (the shipper/exporter and the consignee/importer) and you are allowed to edit them")
+    prompt_template = ChatPromptTemplate.from_template(SUMMARY_TEMPLATE)
+    prompt = prompt_template.format(sender=sender, date=date, email_category=email_category,
+                                    text=current_response, attachments_as_text=attachments_as_text, db_context=context)
     
     
     # Load the language model
     response_text = model.invoke(prompt)
-
-    # sources = [doc.metadata.get("id", None) for doc in context]
-    # formatted_response = f"Response: {response_text}\nSources: {sources}"
-    # formatted_response = f"Response: {response_text}\n"
-    # print(formatted_response)
+    
     return response_text
     
 
 
-def evaluate_summary(summary, email_txt, attachments_txt):
-    model = OllamaLLM(model="llama3.1:latest")
+# def evaluate_summary(summary, email_txt, attachments_txt):
+#     model = OllamaLLM(model="llama3.2-vision:latest")
     
-    prompt_template = ChatPromptTemplate.from_template(REVIEW_TEMPLATE)
-    prompt = prompt_template.format(email_text=email_txt,attachments_text=attachments_txt,summary_text=summary)
+#     prompt_template = ChatPromptTemplate.from_template(REVIEW_TEMPLATE)
+#     prompt = prompt_template.format(email_text=email_txt,attachments_text=attachments_txt,summary_text=summary)
     
-    review = model.invoke(prompt)
+#     review = model.invoke(prompt)
     
-    # Specify the file name
-    file_name = "Results\review_summary.md"
+#     # Specify the file name
+#     file_name = "Results\review_summary.md"
 
-    # Open the file in write mode and write new content
-    with open(file_name, 'w') as file:
-        file.write(review)  
+#     # Open the file in write mode and write new content
+#     with open(file_name, 'w') as file:
+#         file.write(review)  
        
-    return 
+#     return 
     
-
 
 
 def main():    
@@ -191,8 +188,9 @@ def main():
 
     # Generate summary
     start_time = time.time()
-    summary = summarize_email(sender, date, email_message, attachments_as_files, dictionary_DB, email_category)
-    # print("Email Summary:\n", summary)
+    
+    email_category = categorize_email(current_response)
+    summary = summarize_email(sender, date, current_response, attachments_as_text, dictionary_DB, email_category)
     summary_time = time.time()
     execution_time = summary_time - start_time
     print(f"Summarization time: {execution_time} seconds")
@@ -203,11 +201,19 @@ def main():
     # Open the file in write mode and write new content
     with open(file_name, 'w') as file:
         file.write(summary)
+    
+    # from evaluate_summary import review_summary_with_mistral
+    # review = review_summary_with_mistral(current_response, attachments_as_text, email_category, summary)
+    # # Specify the file name
+    # file_name = "Results\review.md"
+
+    # # Open the file in write mode and write new content
+    # with open(file_name, 'w') as file:
+    #     file.write(review)
         
-    evaluate_summary(summary, email_body, attachments_as_text)
-    review_time = time.time()
-    execution_time = review_time - summary_time
-    print(f"Review time: {execution_time} seconds")
+    # review_time = time.time()
+    # execution_time = review_time - summary_time
+    # print(f"Review time: {execution_time} seconds")
     
         
     
