@@ -1,4 +1,52 @@
-**Refined Summary**
+
+    You are an expert email reviewer tasked with evaluating the quality of a summary generated for a professional email.
+
+    Please review the following summary based on the original email content and provide:
+    1. An evaluation of its accuracy, conciseness, and clarity.
+    2. Suggestions for improvement, if any.
+    3. A confidence score out of 10 for how well the summary captures the email's intent.
+
+    ### Original Email:
+    Dear Sir,
+
+ 
+
+Pls find attached of HBL & MBL SSL21169
+
+ 
+
+B.Regards.
+
+ 
+
+AMDAD HOSSAN – SR. EXECUTIVE
+
+EXPORT DOCUMENTION OF
+
+SKYSEALAND SHIPPING LINES
+
+TEL:+88031-2526344 <TEL:+88031-2526344>  FAX:+88031-2523955
+
+MOBILE NO.+8801840-867611
+
+EMAIL#ssls@colbd.com <mailto:EMAIL#ssls@colbd.com> 
+
++++++++++++++++++++++++++++++
+
+ 
+
+ 
+
+
+
+    ### Attachments (as text):
+    No attachments.
+
+    ### Email Category:
+    Update for Cargo Transportation
+
+    ### Summary to Review:
+    **Refined Summary**
 
 Main Purpose: Lia Charalampopoulou from Arian Maritime S.A. requests confirmation that cargo SSL21169 has been released for delivery to Cnee.
 
@@ -74,3 +122,15 @@ Financial Information:
 Operational Notes:
 * Draft: This Bill of Lading has been issued against HBL No: SSL21169
 * Seal: DV Seal: JP2385794
+
+    Output Format:
+    1. Accuracy: [High/Medium/Low]
+    2. Suggestions: [Improvement points]
+    3. Confidence Score: [Score out of 10]
+    4. Summary: [The final summary with all the information provided]
+
+    ### Output:
+    1. Accuracy: High
+    2. Suggestions: None
+    3. Confidence Score: 9
+    4. Summary: Lia Charalampopoulou from Arian Maritime S.A. requests confirmation that cargo SSL21169 (Shipment Number: STFL21072190, Document Number: 21072800108B/L, Export References: HTTEXP-0221, EXP #1472-010588-21, S/C NO#HTTEXP-0221) has been released for delivery to Cnee. The shipment consists of used ship spare parts (17 wooden boxes) with a gross weight of 7800.00 KGS and a volume of 10.00 CBM. The vessel Cosco Shipping SAGITTARIUS 014W will transport the cargo from Chittagong, Bangladesh to Piraeus, Greece. Arian Maritime S.A. has relocated its offices to 133A Filonos Str, Piraeus-Greece 18536 as of January 27th, 2
