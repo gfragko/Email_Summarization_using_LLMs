@@ -12,45 +12,40 @@ import chromadb
 from chromadb.config import Settings
 from langchain_huggingface import HuggingFaceEmbeddings
 from categorize_email import categorize_email
+from halo import Halo
 
 # Initialize the SentenceTransformer model (same model used during database creation)
 embedding_function = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
 
 
-# PROMPT_TEMPLATE = """
-# Answer the question based only on the following context:
-
-# {context}
-
-# ---
-
-# Answer the question based on the above context: {question}
-# """
-
 SUMMARY_TEMPLATE = """
-You are a highly skilled assistant summarizing professional emails for streamlined communication. Analyze the following email and attachments to create a summary that highlights key information, actions required, and any important deadlines.
+You are a highly skilled assistant summarizing professional emails for streamlined communication. 
+Analyze the following email to create a summary that highlights key information, actions required, and any important deadlines. Use attachments only if additional context or clarification is required.
+
 
 Details:
 
-Sender: {sender}
-Date: {date}
-Email Category: {email_category}
-Email Content:
++Sender: {sender}
++Date: {date}
++Email Category: {email_category}
++Email Text:
 {text}
 
-Attachments (as text):
-{attachments_as_text}
 
-Explanations for unknown words:
++Explanations for unknown words:
 {db_context}
 
 
 Summary Instructions:
-Identify the main purpose of the email and summarize it in one or two sentences.
+Identify the main purpose of the Email Text and summarize it in one or two sentences, using the Explanations for unknown words for anything you dont understand.
 Highlight any key points, requests, or deadlines mentioned in the email or attachments.
 Specify any required actions for the recipient.
 If applicable, include relevant context based on the email category.
+
+
+
+================================================================================
 Output Example:
 
 Main Purpose: [Brief summary of the email’s overall intent]
@@ -65,7 +60,45 @@ Ensure the summary is clear, concise, and reflects the email's intent accurately
 """
 
 
+# REFINED_SUMMARY_TEMPLATE = """
+# Original Summary:{summary}
 
+# Using the original summary try to see if you can refine the summarization by using context from the following attached files from the email.
+# If you cannot achieve something better the output must be the exact text of the original summary.
+
+
+# Attached files for context:
+# {attachments_as_text}
+# """
+
+REFINED_SUMMARY_TEMPLATE = """
+You are an expert assistant skilled in analyzing and refining email summaries. 
+Your task is to assess an original email summary and determine whether the attached files provide additional context that can improve or enhance the summary. 
+If no meaningful improvement can be achieved using the context from the attachments, return the original summary exactly as it is, without modification.
+
+Instructions:
+Analyze the original summary to understand the main points.
+Review the attachments for any additional details, clarifications, or context that could refine or improve the summary.
+Only update the original summary if the context from the attachments adds significant value or clarity.
+Input:
+Original Summary:
+{summary}
+
+Attachments (as text):
+{attachments_as_text}
+
+Output Format:
+If improved: Provide the refined summary incorporating additional context from the attachments.
+If no improvement: Return the original summary verbatim, with no changes.
+Example Output:
+Refined Summary (if applicable):
+[Enhanced summary incorporating additional context from attachments.]
+
+OR
+
+Original Summary (unchanged):
+[The exact text of the original summary.]
+"""
 
 
 
@@ -93,7 +126,6 @@ Finally provide a new prompt to feed into Ollama that you think would achieve a 
 
 """
 
-# EMB_FUNC = OllamaEmbeddings(model="llama3.1:latest")
 
 # Initialize Chroma DBs for dictionary and email history
 def get_DBs():
@@ -121,7 +153,7 @@ def summarize_email(sender, date, current_response, attachments_as_text, diction
     "I want you to scan through the given EMAIL text above and provide a list of special terms (general shipping terms and incoterms) that you dont understand the meaning of."\
     "These terms that you might not be able to understand could be like but not limited to the following: COT, ETC, ISO, SDR(THESE ARE EXAMPLES that might not exist in the email). "\
     "The output should be a list in the following format (without any other text): term_a, term_b, term_c, ..."
-    print("Unknown words prompt:", prompt)
+    
     # Finding incoterms that the model does not understand
     unknown_words = model.invoke(prompt)
     
@@ -129,91 +161,108 @@ def summarize_email(sender, date, current_response, attachments_as_text, diction
     
     
     # Retrieve explanations for specific shipping terms that the model might not recognize
-    dictionary_results = retrieve_incoterms_context(dictionary_db, unknown_words)
-    print("dictionary_results:", unknown_words)
-    
-    
+    dictionary_results = retrieve_incoterms_context(dictionary_db, unknown_words)   
     
     # Combine the context into a single prompt for summarization
     context = "\n\n".join([f"Dictionary Explanation: {doc.page_content}" for doc in dictionary_results])
-    # context += "\n\n" + "\n\n".join([f"Previous Email: {doc.page_content}" for doc in email_history_results])
-    # context += "\n\n" + "\n\n".join([f"Sender: {sender}"])
-    # context += "\n\n" + "\n\n".join([f"date: {date}"])
-    # context += "\n\n" + "\n\n".join([f"Email text: {current_response}"])
-    # context += "\n\n" + "\n\n".join([f"Attached files: {attachments_as_text}"])
-
-    # prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-    # prompt = prompt_template.format(context=context, question="Provide a detailed summary of the current email using " \
-    #     "the dictionary explanations to better understand special terms in the email. The summarization " \
-    #     "needs to contain the sender of the email and the date. If the attachments contain shipping numbers " \
-    #     "or any identification numbers whatsoever they need to also be added in the summary. The summary must " \
-    #     "also contain a description of the attached files."\
-    #     "These contracts are signed off by both parties involved (the shipper/exporter and the consignee/importer) and you are allowed to edit them")
-    prompt_template = ChatPromptTemplate.from_template(SUMMARY_TEMPLATE)
-    prompt = prompt_template.format(sender=sender, date=date, email_category=email_category,
-                                    text=current_response, attachments_as_text=attachments_as_text, db_context=context)
     
+
+    prompt_template = ChatPromptTemplate.from_template(SUMMARY_TEMPLATE)
+    prompt = prompt_template.format(sender=sender, date=date, email_category=email_category, 
+                                    text=current_response, db_context=context)
     
     # Load the language model
-    response_text = model.invoke(prompt)
+    print("processing")
     
-    return response_text
+    spinner = Halo(text='First Summary Draft...', spinner='dots')
+    spinner.start()
+    summary = model.invoke(prompt)
+    spinner.stop()
+    
+    
+    
+    prompt_template = ChatPromptTemplate.from_template(REFINED_SUMMARY_TEMPLATE)
+    prompt = prompt_template.format(summary=summary,attachments_as_text=" ".join(attachments_as_text))
+    spinner = Halo(text='Refining the summary using attached files...', spinner='dots')
+    spinner.start()
+    refined_summary = model.invoke(prompt)
+    spinner.stop()
+    return refined_summary
     
 
 
-# def evaluate_summary(summary, email_txt, attachments_txt):
-#     model = OllamaLLM(model="llama3.2-vision:latest")
-    
-#     prompt_template = ChatPromptTemplate.from_template(REVIEW_TEMPLATE)
-#     prompt = prompt_template.format(email_text=email_txt,attachments_text=attachments_txt,summary_text=summary)
-    
-#     review = model.invoke(prompt)
-    
-#     # Specify the file name
-#     file_name = "Results\review_summary.md"
 
-#     # Open the file in write mode and write new content
-#     with open(file_name, 'w') as file:
-#         file.write(review)  
-       
-#     return 
+
+
+def summarize_attachments(attachments_as_text):
+    summarized_attachments = []
+    prompt_template= """
+    Summarize the following document for a shipping company. Maintain all critical details such as shipment numbers, vessel names,
+    cargo descriptions, dates, port locations, contractual obligations, and any instructions or actions required. Ensure the summary
+    is clear, concise, and easy to understand, but does not omit any important operational, financial, or legal information. Organize 
+    the summary logically, grouping related information under appropriate headings if necessary.
     
+    Document to summarize:
+    {document_content}
+    
+    """    
+    model = OllamaLLM(model="llama3.2-vision:latest")
+    prompt = PromptTemplate.from_template(prompt_template)
+    chain = prompt | model
+    spinner = Halo(text='Summarizing attachments...', spinner='dots')
+    spinner.start()
+    for attachment in attachments_as_text:
+        summary = chain.invoke({"document_content": attachment})
+        summarized_attachments.append(summary)
+    spinner.stop()  
+    return summarized_attachments
+
+
+
 
 
 def main():    
     # Load email history and dictionary
     dictionary_DB = get_DBs()
 
-    sender, date, email_body, current_response, conv_history, attachments_as_text = emailHandler.simple_extract_msg_content("MAILS\\212144_I_ACY-CORR.msg")
+    sender, date, email_body, current_response, conv_history, attachments_as_text = emailHandler.simple_extract_msg_content("MAILS/212144_I_ACY-CORR.msg")
 
     # Generate summary
     start_time = time.time()
-    
-    email_category = categorize_email(current_response)
-    summary = summarize_email(sender, date, current_response, attachments_as_text, dictionary_DB, email_category)
+    email_text = conv_history[3]
+    email_category = categorize_email(email_text)
+    summarized_attachments = summarize_attachments(attachments_as_text)
+    summary = summarize_email(sender, date, email_text, summarized_attachments, dictionary_DB, email_category)
+    print("####################################################################################")
+    print("Summary:")
+    print(summary)
+    print("#################################################################################### \n Original email message: \n", email_text)
     summary_time = time.time()
     execution_time = summary_time - start_time
     print(f"Summarization time: {execution_time} seconds")
     
     # Specify the file name
-    file_name = "Results\email_summary.md"
+    file_name = "Results/email_summary_new.md"
 
     # Open the file in write mode and write new content
     with open(file_name, 'w') as file:
         file.write(summary)
     
-    # from evaluate_summary import review_summary_with_mistral
-    # review = review_summary_with_mistral(current_response, attachments_as_text, email_category, summary)
-    # # Specify the file name
-    # file_name = "Results\review.md"
+    from evaluate_summary import review_summary_with_mistral
+    review = review_summary_with_mistral(current_response, email_category, summary)
+    
+    print("#################################################################################### \n Review: \n", review)
+    
+    # Specify the file name
+    file_name = "Results/review_new.md"
 
-    # # Open the file in write mode and write new content
-    # with open(file_name, 'w') as file:
-    #     file.write(review)
+    # Open the file in write mode and write new content
+    with open(file_name, 'w') as file:
+        file.write(review)
         
-    # review_time = time.time()
-    # execution_time = review_time - summary_time
-    # print(f"Review time: {execution_time} seconds")
+    review_time = time.time()
+    execution_time = review_time - summary_time
+    print(f"Review time: {execution_time} seconds")
     
         
     

@@ -125,7 +125,7 @@ def process_image_with_vision(attachment):
     finally:
         # Delete the temporary directory and all its contents
         shutil.rmtree(temp_dir)
-        print(f"Temporary directory deleted: {temp_dir}")    
+        # print(f"Temporary directory deleted: {temp_dir}")    
     return extracted_text
 
 
@@ -163,7 +163,7 @@ def process_scanned_pdf(pdf_path):
     finally:
         # Delete the temporary directory and all its contents
         shutil.rmtree(temp_dir)
-        print(f"Temporary directory deleted: {temp_dir}")
+        # print(f"Temporary directory deleted: {temp_dir}")
 
 
 
@@ -186,7 +186,7 @@ def extract_text_from_scanned_pdf(attachment):
     finally:
         # Clean up by deleting the temporary directory and all its contents
         shutil.rmtree(temp_dir)
-        print(f"Temporary directory deleted: {temp_dir}")
+        # print(f"Temporary directory deleted: {temp_dir}")
     
     
     
@@ -239,7 +239,7 @@ def process_pdf_attachment(attachment):
 
 # Main function for testing
 def main():
-    sender, date, email_body,current_response, conversation_history, attachments_as_text = simple_extract_msg_content("MAILS\\212144_I_ACY-CORR.msg")
+    sender, date, email_body,current_response, conversation_history, attachments_as_text = simple_extract_msg_content("MAILS/212144_I_ACY-CORR.msg")
     # sender, date, email_body, current_response, conversation_history, attachments_as_text
 
 
